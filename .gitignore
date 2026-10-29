@@ -36,3 +36,7 @@ __pycache__/
 *.synctex.gz
 *.thm
 figure/
+!report/figure/
+!report/figure/**
+!report/table/
+!report/table/**
