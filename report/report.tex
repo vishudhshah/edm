@@ -8,16 +8,12 @@
 %%%% Title and Authors
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\title{DSC Capstone LaTeX Template}
+\title{Reproducing EDM on CIFAR-10: Conditioning, Classifier-Free Guidance, and FID}
 
-\author{Shiv Mehta \\
-  {\tt email@ucsd.edu} \\\And
-  Vedant Vardhaan \\
-  {\tt email@ucsd.edu} \\\And
-  Vishudh Shah \\
+\author{Vishudh Shah \\
   {\tt v8shah@ucsd.edu} \\\And
   Yusu Wang \\
-  {\tt email@ucsd.edu} \\}
+  {\tt yusuwang@ucsd.edu} \\}
 
 \begin{document}
 \maketitle
@@ -27,15 +23,18 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \begin{abstract}
-    {
-    \color{blue}
-    Replace the \texttt{lipsum[1]} in the source code with your abstract. Don't include an abstract with your Quarter 2 Proposal.
-    }
-    \textcolor{LightGrey}{\lipsum[1]}
+    Diffusion models generate images by learning to reverse a noising process, and the design space of this
+    reversal is large. This report reproduces key results of Elucidating the Design Space of Diffusion-Based
+    Generative Models (EDM, Karras et al., NeurIPS 2022) on CIFAR-10: unconditional and class-conditional
+    sampling from NVIDIA's pretrained EDM networks, the behavior of the deterministic Heun sampler examined
+    through denoiser trajectories, and classifier-free guidance (CFG), which mixes a conditional and an
+    unconditional denoiser estimate with a weight $w$. We measure label accuracy, Fr\'echet Inception Distance
+    (FID), and per-class FID across $w \in \{0, 1, 1.5, 2, 3, 4\}$ at 1{,}000 images per setting, and we train
+    small CFG networks ourselves on CIFAR-10 subsets and on MNIST. % RESULTS SENTENCE PLACEHOLDER
 \end{abstract}
 
 \begin{center}
-Code: \url{https://github.com/VedVar43789/na-rfm-pets}
+Code: \url{https://github.com/vishudhshah/edm}
 \end{center}
 
 \maketoc
@@ -47,38 +46,49 @@ Code: \url{https://github.com/VedVar43789/na-rfm-pets}
 
 \section{Introduction}
 
-Diffusion models generate images by progressively transforming random noise into structured samples through a learned denoising process \citep{ho2020ddpm}.
-However, producing realistic images does not by itself provide control over what those images depict.
-A pretrained model may generate a broad range of objects while offering no direct way to request a particular category or visual attribute.
-Adding control after training lets us guide the model toward specific categories or attributes without retraining it.
-The central challenge is to guide generation toward a target concept while preserving image quality and keeping the computational cost manageable.
+Diffusion models generate images by progressively transforming random noise into structured samples through a
+learned denoising process \citep{ho2020ddpm}. The denoising formulation behind modern samplers was unified by
+the score-based view \citep{song2021scorebased}, and EDM \citep{karras2022edm} re-derives the whole
+pipeline --- noise schedule, network preconditioning, sampler, and training weights --- as a design space of
+separable choices, reaching state-of-the-art FID on CIFAR-10 (1.97 unconditional, 1.79 conditional) with far
+fewer network evaluations than prior designs.
 
-Our project studies this problem through Noise-Aligned Recursive Feature Machine Steering (NA-RFM), introduced by \cite{wang2026steering}.
-NA-RFM constructs guidance signals from labeled examples while keeping the pretrained diffusion model fixed.
-It combines a correction based on principal component analysis (PCA) at high noise levels with a learned direction in the model's internal activation space at intermediate and low noise levels.
-These signals are computed offline and reused during generation, avoiding inference-time backpropagation.
+Producing realistic images does not by itself provide control over what those images depict. Classifier-free
+guidance \citep{ho2022cfg} adds that control without a separate classifier: a conditional denoiser
+$D(x;\sigma,c)$ and an unconditional one $D(x;\sigma)$ are mixed as
+$D_w = D(x;\sigma) + w\,(D(x;\sigma,c) - D(x;\sigma))$, with $w>1$ extrapolating along the direction the class
+makes in the estimate. Guidance improves prompt adherence but trades off sample variety, which motivates
+measuring accuracy, FID, and per-class FID together across $w$.
 
-We aim to reproduce the paper's ImageNet steering experiment using the released implementation, then adapt the method to the Oxford-IIIT Pet dataset.
-This adaptation will compare two levels of semantic control: generating cats versus dogs, and generating individual breeds.
-We will also investigate whether an activation direction learned at one noise level remains effective when applied at other noise levels.
-Our evaluation will examine target-class accuracy, Fr\'echet Inception Distance (FID), and computational cost, with offline preparation reported separately from sampling.
-Together, these experiments will assess how the method's effectiveness changes with target granularity and with the transfer from ImageNet to a different image dataset.
+The checkpoint work here is the base for the capstone's goal of steering pretrained diffusion models with
+guidance-like signals. We reproduce: (1) unconditional and conditional sampling with EDM's pretrained CIFAR-10
+networks, examined inside the sampler through trajectories of the noisy image and the denoiser's estimate;
+(2) the CFG sweep over $w$ with label accuracy, FID, and per-class FID at 1{,}000 images per setting; (3) the
+training of small CFG networks on 100 and 1{,}000 CIFAR-10 images with 10\% label dropout, including the
+memorization check against nearest training images; (4) the same CFG construction trained from scratch on
+MNIST; and, as compute allows, (5) a partial run of EDM's full 55.7M-parameter training.
+
+\subsection{Data}
+
+We use CIFAR-10 \citep{krizhevsky2009cifar} (50{,}000 training and 10{,}000 test $32\times32$ color images in
+ten classes) for the pretrained-model experiments and the subset training, and MNIST \citep{lecun1998mnist}
+(60{,}000 $28\times28$ grayscale digits) for the from-scratch CFG network. All FIDs use EDM's reference
+statistics of the 50{,}000 CIFAR-10 training images and EDM's Inception detector. With 1{,}000 samples per
+setting our FIDs are much higher than published 50{,}000-sample values, so runs are compared only with each
+other at equal sample counts.
 
 \section{Methods}
+% Fill in: EDM formulation (x = x1 + sigma*x0, preconditioning, Heun 18 steps / 35 NFE),
+% two-network CFG for pretrained models, one-network CFG via label dropout for trained models,
+% label accuracy via pretrained ResNet-56, FID / FID_class definitions, snapshot FID protocol.
 
-
-
-\section{Results}
-
-
+\section{Preliminary results}
+% Fill in from artifacts: sample grids, trajectory figures, CFG sweep table + plots, subset-training curves,
+% nearest-neighbor memorization check, MNIST table, full-run curves. One sentence per figure.
 
 \section{Discussion}
 
-
-
 \section{Conclusion}
-
-
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%% Reference / Bibliography
