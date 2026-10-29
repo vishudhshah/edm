@@ -18,14 +18,13 @@ My checkpoint work for DSC 180A: I generate CIFAR-10 images with NVIDIA's pretra
 
 ### Setup (what I run)
 
-```bash
-conda env create -f environment.yml -n edm
-conda activate edm
+I use the DSMLP default environment (its Python/Jupyter already has what the notebook needs) — no conda env.
 
-# I run on a GPU (DSMLP or Colab). The notebook downloads everything it needs (~720 MB):
-# pretrained EDM CIFAR-10 checkpoints + CIFAR-10 data + FID reference stats.
+```bash
 jupyter lab dsc180-d32-cifar10-edm-lab/cifar10_edm_lab.ipynb
 ```
+
+The notebook downloads everything it needs (~720 MB): pretrained EDM CIFAR-10 checkpoints + CIFAR-10 data + FID reference stats.
 
 `train.py` needs a one-line fix with PyTorch ≥ 2.2; the notebook explains it and applies it to its own copy of EDM.
 

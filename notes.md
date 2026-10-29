@@ -4,7 +4,7 @@ My notes for the checkpoint (due Friday, November 6, 2026): what I've done, deci
 
 ## My checklist
 
-- [ ] First 24h: I make the repo public, write the README (setup, downloads, command per figure/table), keep this notes file, and get the CIFAR lab running on a GPU (parts 1–3)
+- [x] First 24h: repo public, README (setup, downloads, command per figure/table), notes file, CIFAR lab running on GPU (parts 1–3 done on DSMLP)
 - [ ] Generation & sampling: lab parts 1–5 — sample grids, trajectories, CFG sweep w ∈ {0, 1, 1.5, 2, 3, 4}, accuracy/FID/FID_class at 1,000 images per w
 - [ ] Small-subset training (part 6): I train on 100 and 1,000 CIFAR-10 images with 10% label dropout, save and measure snapshots, check nearest training neighbors, draw CFG grids
 - [ ] MNIST CFG network: I train the lab's U-Net from scratch on the 60k digits, replacing the label with 10 ("no label") on a random 10%, then sample at w ∈ {0, 1, 2, 4} and measure accuracy + FID on the classifier's features
@@ -13,8 +13,8 @@ My notes for the checkpoint (due Friday, November 6, 2026): what I've done, deci
 
 ## Setup decisions
 
-- I use the repo's `environment.yml` (`conda env create -f environment.yml -n edm`).
-- I run on a DSMLP GPU (Colab as fallback); the notebook downloads ~720 MB (pretrained checkpoints, CIFAR-10, FID refs).
+- I check off "First 24h" below — repo, README, notes, parts 1–3 all done on DSMLP.
+- I run in the DSMLP default environment (no conda env; Colab as fallback); the notebook downloads ~720 MB (pretrained checkpoints, CIFAR-10, FID refs).
 - I apply the one-line `train.py` fix for PyTorch ≥ 2.2, per the notebook's instructions.
 
 ## Things I need to remember
@@ -30,3 +30,4 @@ My notes for the checkpoint (due Friday, November 6, 2026): what I've done, deci
 ## Work log
 
 - 2026-10-29: I forked NVlabs/edm, added the CIFAR-10 EDM lab and MNIST guidance lab, wrote the checkpoint README section (setup, downloads, figure/table map), and started this notes file.
+- 2026-10-29: I ran the notebook parts 1–3 on DSMLP, added a .gitignore, committed the executed notebook, and synced everything across DSMLP and my Mac. TA check-in is tomorrow.
