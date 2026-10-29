@@ -1,5 +1,10 @@
 # DSC 180 · D32 · MNIST and guidance lab
 
+One measurement convention for the checkpoint table (`mnist_cfg_from_scratch.py`): FID is computed on the frozen
+evaluator's 128-d features, and the reference set is the 10,000 real MNIST **test** images. The lab ships no
+precomputed MNIST FID statistics, so the reference is a choice: any w's number is comparable only with the other
+w values of the same run (same reference, same 1,000 samples), never with published Inception-FIDs.
+
 Two standalone notebooks. Each one installs its packages, writes its helper code next to itself, and fetches the
 trained weights (about 10 MB, checked against the course copy), so the notebook alone is enough. This folder also
 holds a copy of the weights for working offline: keep them next to the notebooks and the fetch cell skips the
