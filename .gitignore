@@ -1,0 +1,38 @@
+# Data & model downloads from the notebooks (~720 MB) — never commit these
+downloads/
+cifar10/
+datasets/
+fid-refs/
+fid-tmp/
+training-runs/
+data/
+MNIST/raw/
+
+# Model / data files
+*.pkl
+*.pt
+*.npz
+*.tar.gz
+
+# Generated images
+out/
+*.png
+!docs/*.png
+
+# Python artefacts
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+
+# LaTeX build artefacts
+*.aux
+*.bbl
+*.blg
+*.fls
+*.fdb_latexmk
+*.log
+*.out
+*.toc
+*.synctex.gz
+*.thm
+figure/
