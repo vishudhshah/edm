@@ -10,6 +10,53 @@ Abstract: *We argue that the theory and practice of diffusion-based generative m
 
 For business inquiries, please visit our website and submit the form: [NVIDIA Research Licensing](https://www.nvidia.com/en-us/research/inquiries/)
 
+---
+
+## DSC 180A · D32 Checkpoint (Q1, due Fri 2026-11-06)
+
+My checkpoint work for DSC 180A: I generate CIFAR-10 images with NVIDIA's pretrained EDM models and measure them with CFG, then train small CFG networks myself on CIFAR-10 and MNIST. My main notebook is [`dsc180-d32-cifar10-edm-lab/cifar10_edm_lab.ipynb`](./dsc180-d32-cifar10-edm-lab/cifar10_edm_lab.ipynb); the MNIST guidance lab is in [`dsc180-d32-mnist-guidance-lab/`](./dsc180-d32-mnist-guidance-lab). I keep my work log and decisions in [`notes.md`](./notes.md).
+
+### Setup (what I run)
+
+```bash
+conda env create -f environment.yml -n edm
+conda activate edm
+
+# I run on a GPU (DSMLP or Colab). The notebook downloads everything it needs (~720 MB):
+# pretrained EDM CIFAR-10 checkpoints + CIFAR-10 data + FID reference stats.
+jupyter lab dsc180-d32-cifar10-edm-lab/cifar10_edm_lab.ipynb
+```
+
+`train.py` needs a one-line fix with PyTorch ≥ 2.2; the notebook explains it and applies it to its own copy of EDM.
+
+### Data downloads
+
+| What | Source | Where it lands |
+| :--- | :--- | :--- |
+| Pretrained EDM CIFAR-10 models (uncond + cond VP) | `https://nvlabs-fi-cdn.nvidia.com/edm/pretrained/` | downloaded by notebook cell (cached) |
+| CIFAR-10 (50k train images) | `https://www.cs.toronto.edu/~kriz/cifar.html` | downloaded by notebook (~170 MB) |
+| FID reference stats CIFAR-10 | `https://nvlabs-fi-cdn.nvidia.com/edm/fid-refs/cifar10-32x32.npz` | downloaded by notebook |
+| MNIST (60k train digits) | `torchvision.datasets.MNIST` | `data/MNIST/` (MNIST lab) |
+| Frozen MNIST digit classifier + lab assets | `dsc180-d32-mnist-guidance-lab/` | `.pt`/`.npz` files in that folder |
+
+### Figures and tables → commands
+
+| # | Figure / table | How it is produced |
+| :--- | :--- | :--- |
+| 1 | Sample grids: unconditional vs conditional pretrained EDM | CIFAR lab, parts 1–2 (`cifar10_edm_lab.ipynb`) — _grid files: TBA_ |
+| 2 | CFG sampling with D(x;σ) + w·(D(x;σ,c) − D(x;σ)), w ∈ {0, 1, 1.5, 2, 3, 4} | CIFAR lab, part 4 — _grids per w: TBA_ |
+| 3 | Sampling trajectories: noisy image + denoiser estimate D at each noise level | CIFAR lab, part 3 — _trajectory figures: TBA_ (answers to part-3 questions in notes) |
+| 4 | Table + plots: label accuracy, FID, FID_class vs w (1,000 images per w) | CIFAR lab, part 5 — _table/plot files: TBA_ |
+| 5 | FID across snapshots for small-subset training (100 and 1,000 images, 10% label dropout) | CIFAR lab, part 6 — _curve files: TBA_ |
+| 6 | Samples next to nearest training images (memorization check) | part 6 + nearest-neighbor search over training set — _figure: TBA_ |
+| 7 | CFG grids from small-subset models | part 6 — _grids: TBA_ |
+| 8 | MNIST CFG: label accuracy + FID (classifier features) for w ∈ {0, 1, 2, 4} | MNIST guidance lab (`guidance_mnist.ipynb`), U-Net trained from scratch with 10% label dropout (label → 10) — _results: TBA_ |
+| 9 | (Encouraged) Full EDM train run: loss curve + FID across snapshots | `torchrun --standalone --nproc_per_node=1 train.py --outdir=training-runs --data=datasets/cifar10-32x32.zip --cond=1 --arch=ddpmpp` on DSMLP GPU — _curves: TBA_ |
+
+### Notes on FID comparability
+
+All checkpoint FIDs use 1,000 samples per setting (much higher than the paper's 50,000-sample values of 1.97 / 1.79). Compare runs only at equal sample counts.
+
 ## Requirements
 
 * Linux and Windows are supported, but we recommend Linux for performance and compatibility reasons.
