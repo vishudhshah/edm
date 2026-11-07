@@ -1,293 +1,96 @@
-## Elucidating the Design Space of Diffusion-Based Generative Models (EDM)<br><sub>Official PyTorch implementation of the NeurIPS 2022 paper</sub>
+# Reproducing EDM on CIFAR-10: Conditioning, Classifier-Free Guidance, and FID
 
-![Teaser image](./docs/teaser-1920x640.jpg)
+**Author:** Vishudh Shah, DSC 180A Section D32, UC San Diego, Fall 2026<br>
+**Mentor:** Prof. Yusu Wang
 
-**Elucidating the Design Space of Diffusion-Based Generative Models**<br>
-Tero Karras, Miika Aittala, Timo Aila, Samuli Laine
-<br>https://arxiv.org/abs/2206.00364<br>
+## Overview
 
-Abstract: *We argue that the theory and practice of diffusion-based generative models are currently unnecessarily convoluted and seek to remedy the situation by presenting a design space that clearly separates the concrete design choices. This lets us identify several changes to both the sampling and training processes, as well as preconditioning of the score networks. Together, our improvements yield new state-of-the-art FID of 1.79 for CIFAR-10 in a class-conditional setting and 1.97 in an unconditional setting, with much faster sampling (35 network evaluations per image) than prior designs. To further demonstrate their modular nature, we show that our design changes dramatically improve both the efficiency and quality obtainable with pre-trained score networks from previous work, including improving the FID of a previously trained ImageNet-64 model from 2.07 to near-SOTA 1.55, and after re-training with our proposed improvements to a new SOTA of 1.36.*
+This repository holds my Quarter 1 checkpoint for DSC 180A.
+It is a fork of NVIDIA's [EDM](https://github.com/NVlabs/edm) codebase, with the course labs and my experiments added on top.
 
-For business inquiries, please visit our website and submit the form: [NVIDIA Research Licensing](https://www.nvidia.com/en-us/research/inquiries/)
+What I did:
+- Sampled CIFAR-10 images from NVIDIA's pretrained unconditional and class-conditional EDM models.
+- Added classifier-free guidance (CFG) and swept the guidance weight over 0, 1, 1.5, 2, 3 and 4, measuring label accuracy, FID and per-class FID.
+- Looked inside the sampler: the noisy image and the denoiser's estimate at each noise level.
+- Trained small CFG networks on 100 and 1,000 CIFAR-10 images and checked them for memorization.
+- Trained a CFG network on MNIST from scratch.
+- Ran EDM's own `train.py` on CIFAR-10 for about 3 hours on one GPU.
 
----
+The report is at [`report/report.pdf`](report/report.pdf).
+My work log and answers to the notebook questions are in [`NOTES.md`](NOTES.md).
 
-## DSC 180A · D32 Checkpoint (Q1, due Fri 2026-11-06)
+## Repository structure
 
-My checkpoint work for DSC 180A: I generate CIFAR-10 images with NVIDIA's pretrained EDM models and measure them with CFG, then train small CFG networks myself on CIFAR-10 and MNIST. My main notebook is [`dsc180-d32-cifar10-edm-lab/cifar10_edm_lab.ipynb`](./dsc180-d32-cifar10-edm-lab/cifar10_edm_lab.ipynb); the MNIST guidance lab is in [`dsc180-d32-mnist-guidance-lab/`](./dsc180-d32-mnist-guidance-lab). I keep my work log and decisions in [`notes.md`](./notes.md).
+| Path | Contents |
+| :--- | :--- |
+| `dsc180-d32-cifar10-edm-lab/` | Main notebook `cifar10_edm_lab.ipynb` (parts 1 to 6) and its saved results in `outputs/` |
+| `dsc180-d32-mnist-guidance-lab/` | MNIST guidance lab, my from-scratch script `mnist_cfg_from_scratch.py`, and its results in `mnist_cfg_outputs/` |
+| `training_run/` | Log, loss curve and snapshot FIDs from the full `train.py` run |
+| `report/` | LaTeX source `report.tex`, figures, tables, bibliography and the compiled `report.pdf` |
+| `NOTES.md` | Checklist, decisions, part 3 answers, key numbers and work log |
+| `AI_USE.md` | How AI tools were used |
+| `train.py`, `generate.py`, `fid.py`, `dataset_tool.py`, `training/`, ... | NVIDIA's original EDM code |
 
-### Setup (what I run)
+## Setup
 
-```bash
-conda env create -f environment.yml -n edm
-conda activate edm
+I ran everything on UCSD's DSMLP in the default environment, whose Python and Jupyter already have what the notebooks need.
+Any recent Python with PyTorch, NumPy, SciPy and Matplotlib should also work.
 
-# I run on a GPU (DSMLP or Colab). The notebook downloads everything it needs (~720 MB):
-# pretrained EDM CIFAR-10 checkpoints + CIFAR-10 data + FID reference stats.
-jupyter lab dsc180-d32-cifar10-edm-lab/cifar10_edm_lab.ipynb
-```
-
-`train.py` needs a one-line fix with PyTorch ≥ 2.2; the notebook explains it and applies it to its own copy of EDM.
-
-### Data downloads
-
-| What | Source | Where it lands |
+| Job | Hardware | Time (GTX 1080 Ti) |
 | :--- | :--- | :--- |
-| Pretrained EDM CIFAR-10 models (uncond + cond VP) | `https://nvlabs-fi-cdn.nvidia.com/edm/pretrained/` | downloaded by notebook cell (cached) |
-| CIFAR-10 (50k train images) | `https://www.cs.toronto.edu/~kriz/cifar.html` | downloaded by notebook (~170 MB) |
-| FID reference stats CIFAR-10 | `https://nvlabs-fi-cdn.nvidia.com/edm/fid-refs/cifar10-32x32.npz` | downloaded by notebook |
-| MNIST (60k train digits) | `torchvision.datasets.MNIST` | `data/MNIST/` (MNIST lab) |
-| Frozen MNIST digit classifier + lab assets | `dsc180-d32-mnist-guidance-lab/` | `.pt`/`.npz` files in that folder |
+| CIFAR-10 lab, parts 1 to 6 | GPU (also runs on Apple GPUs, since sampling is in float32) | about 2.3 hours |
+| MNIST from-scratch script | GPU recommended | about 30 minutes |
+| Full `train.py` run | GPU | stopped after about 3 hours |
 
-### Figures and tables → commands
+`train.py` needs a one-line fix for PyTorch 2.2 and newer.
+The notebook explains it and applies it to its own copy of EDM.
 
-| # | Figure / table | How it is produced |
+## Data
+
+The notebooks download what they need on first run (about 720 MB in total).
+
+| What | Source | Used by |
 | :--- | :--- | :--- |
-| 1 | Sample grids: unconditional vs conditional pretrained EDM | CIFAR lab, parts 1–2 (`cifar10_edm_lab.ipynb`) — _grid files: TBA_ |
-| 2 | CFG sampling with D(x;σ) + w·(D(x;σ,c) − D(x;σ)), w ∈ {0, 1, 1.5, 2, 3, 4} | CIFAR lab, part 4 — _grids per w: TBA_ |
-| 3 | Sampling trajectories: noisy image + denoiser estimate D at each noise level | CIFAR lab, part 3 — _trajectory figures: TBA_ (answers to part-3 questions in notes) |
-| 4 | Table + plots: label accuracy, FID, FID_class vs w (1,000 images per w) | CIFAR lab, part 5 — _table/plot files: TBA_ |
-| 5 | FID across snapshots for small-subset training (100 and 1,000 images, 10% label dropout) | CIFAR lab, part 6 — _curve files: TBA_ |
-| 6 | Samples next to nearest training images (memorization check) | part 6 + nearest-neighbor search over training set — _figure: TBA_ |
-| 7 | CFG grids from small-subset models | part 6 — _grids: TBA_ |
-| 8 | MNIST CFG: label accuracy + FID (classifier features) for w ∈ {0, 1, 2, 4} | MNIST guidance lab (`guidance_mnist.ipynb`), U-Net trained from scratch with 10% label dropout (label → 10) — _results: TBA_ |
-| 9 | (Encouraged) Full EDM train run: loss curve + FID across snapshots | `torchrun --standalone --nproc_per_node=1 train.py --outdir=training-runs --data=datasets/cifar10-32x32.zip --cond=1 --arch=ddpmpp` on DSMLP GPU — _curves: TBA_ |
+| Pretrained EDM CIFAR-10 models (unconditional and conditional, VP) | `https://nvlabs-fi-cdn.nvidia.com/edm/pretrained/` | CIFAR-10 lab |
+| CIFAR-10 (50,000 train, 10,000 test images) | Hugging Face copy `uoft-cs/cifar10` (an existing `cifar-10-python.tar.gz` in `downloads/` is used instead) | CIFAR-10 lab, `train.py` |
+| CIFAR-10 FID reference statistics | `https://nvlabs-fi-cdn.nvidia.com/edm/fid-refs/cifar10-32x32.npz` | CIFAR-10 lab, `train.py` |
+| MNIST (60,000 train, 10,000 test digits) | `torchvision.datasets.MNIST` | MNIST script |
+| Frozen MNIST digit classifier and lab weights | included in `dsc180-d32-mnist-guidance-lab/` | MNIST script |
 
-### Notes on FID comparability
+For the full training run, the CIFAR-10 lab's "actual training run" cell writes CIFAR-10 in EDM's ZIP format (the same format `dataset_tool.py` makes).
+Save it as `datasets/cifar10-32x32.zip`, the path the training command below uses.
 
-All checkpoint FIDs use 1,000 samples per setting (much higher than the paper's 50,000-sample values of 1.97 / 1.79). Compare runs only at equal sample counts.
+## Reproducing figures and tables
 
-## Requirements
+To run the CIFAR-10 lab, open `dsc180-d32-cifar10-edm-lab/cifar10_edm_lab.ipynb` and run all cells.
 
-* Linux and Windows are supported, but we recommend Linux for performance and compatibility reasons.
-* 1+ high-end NVIDIA GPU for sampling and 8+ GPUs for training. We have done all testing and development using V100 and A100 GPUs.
-* 64-bit Python 3.8 and PyTorch 1.12.0 (or later). See https://pytorch.org for PyTorch install instructions.
-* Python libraries: See [environment.yml](./environment.yml) for exact library dependencies. You can use the following commands with Miniconda3 to create and activate your Python environment:
-  - `conda env create -f environment.yml -n edm`
-  - `conda activate edm`
-* Docker users:
-  - Ensure you have correctly installed the [NVIDIA container runtime](https://docs.docker.com/config/containers/resource_constraints/#gpu).
-  - Use the [provided Dockerfile](./Dockerfile) to build an image with the required library dependencies.
+| Report item | How to produce it | Output |
+| :--- | :--- | :--- |
+| Sample grids from the pretrained models | CIFAR-10 lab, parts 1 and 2 | `report/figure/cond_grid_classes.png` |
+| CFG sample grids at guidance 0 and 4 | CIFAR-10 lab, part 4 | `outputs/cfg_w*_n1000.npz`, `report/figure/cifar_grid_w0.png`, `cifar_grid_w4.png` |
+| Sampling trajectories (noisy image and denoiser estimate) | CIFAR-10 lab, parts 3 and 4 | `report/figure/trajectory_w1.png`, `trajectory_w4.png`, `outputs/trajectory_cfg_w4.gif` |
+| CFG sweep table and plots (accuracy, FID, per-class FID) | CIFAR-10 lab, part 5 | `outputs/cfg_sweep_n1000.json`, `report/table/cfg_sweep.tex`, `report/figure/cfg_sweep_plots.png` |
+| Small-subset training: loss and FID across snapshots | CIFAR-10 lab, part 6 | `report/figure/subset_loss_fid.png`, `report/table/subset_fid.tex` |
+| Nearest training images (memorization check) | CIFAR-10 lab, part 6 | `report/figure/nearest_subset100.png`, `nearest_subset1000.png` |
+| CFG grids from the small-subset networks | CIFAR-10 lab, part 6 | `report/figure/subset100_cfg.png`, `subset1000_cfg.png` |
+| MNIST CFG: accuracy, FID and sample grids | `cd dsc180-d32-mnist-guidance-lab && python3 mnist_cfg_from_scratch.py` | `mnist_cfg_outputs/mnist_cfg_results.json`, `report/table/mnist_cfg.tex`, `report/figure/mnist_grid_w0.png`, `mnist_grid_w1.png` |
+| Full training run: loss curve and FID across snapshots | `torchrun --standalone --nproc_per_node=1 train.py --outdir=training-runs --data=datasets/cifar10-32x32.zip --cond=0 --arch=ddpmpp` | `training_run/loss_curve.png`, `fid_vs_kimg.png`, `snapshot_fid.json` |
 
-## Getting started
+To rebuild the report, run `latexmk -lualatex report.tex` inside `report/`.
 
-To reproduce the main results from our paper, simply run:
+## A note on FID
 
-```.bash
-python example.py
-```
+Every FID in this project uses 1,000 generated images per setting, so the values are much higher than the paper's 50,000-image results (1.97 unconditional, 1.79 conditional).
+I only compare runs at equal sample counts.
+The MNIST FID uses the lab classifier's features against the 10,000 MNIST test images, so it is only comparable across guidance weights within the same run.
 
-This is a minimal standalone script that loads the best pre-trained model for each dataset and generates a random 8x8 grid of images using the optimal sampler settings. Expected results:
+## AI use
 
-| Dataset  | Runtime | Reference image
-| :------- | :------ | :--------------
-| CIFAR-10 | ~6 sec  | [`cifar10-32x32.png`](./docs/cifar10-32x32.png)
-| FFHQ     | ~28 sec | [`ffhq-64x64.png`](./docs/ffhq-64x64.png)
-| AFHQv2   | ~28 sec | [`afhqv2-64x64.png`](./docs/afhqv2-64x64.png)
-| ImageNet | ~5 min  | [`imagenet-64x64.png`](./docs/imagenet-64x64.png)
+I used [Hermes Agent](https://github.com/NousResearch/hermes-agent) with GLM 5.3 Flash and Claude Opus 5.5 to help me understand the EDM paper and code, adapt and debug the code, monitor and launch GPU jobs on DSMLP overnight, polish the report's language from my own drafts, keep this README current, and cross-check my interpretations of results.
+I made the experimental design, the first drafts, the result interpretations, most of the LaTeX and all final decisions myself, and our team chose the capstone direction with our mentor.
+See [`AI_USE.md`](AI_USE.md) for the full summary, representative prompts and how results were validated.
 
-The easiest way to explore different sampling strategies is to modify [`example.py`](./example.py) directly. You can also incorporate the pre-trained models and/or our proposed EDM sampler in your own code by simply copy-pasting the relevant bits. Note that the class definitions for the pre-trained models are stored within the pickles themselves and loaded automatically during unpickling via [`torch_utils.persistence`](./torch_utils/persistence.py). To use the models in external Python scripts, just make sure that `torch_utils` and `dnnlib` are accesible through `PYTHONPATH`.
+## Credits and license
 
-**Docker**: You can run the example script using Docker as follows:
-
-```.bash
-# Build the edm:latest image
-docker build --tag edm:latest .
-
-# Run the generate.py script using Docker:
-docker run --gpus all -it --rm --user $(id -u):$(id -g) \
-    -v `pwd`:/scratch --workdir /scratch -e HOME=/scratch \
-    edm:latest \
-    python example.py
-```
-
-Note: The Docker image requires NVIDIA driver release `r520` or later.
-
-The `docker run` invocation may look daunting, so let's unpack its contents here:
-
-- `--gpus all -it --rm --user $(id -u):$(id -g)`: with all GPUs enabled, run an interactive session with current user's UID/GID to avoid Docker writing files as root.
-- ``-v `pwd`:/scratch --workdir /scratch``: mount current running dir (e.g., the top of this git repo on your host machine) to `/scratch` in the container and use that as the current working dir.
-- `-e HOME=/scratch`: specify where to cache temporary files. Note: if you want more fine-grained control, you can instead set `DNNLIB_CACHE_DIR` (for pre-trained model download cache). You want these cache dirs to reside on persistent volumes so that their contents are retained across multiple `docker run` invocations.
-
-## Pre-trained models
-
-We provide pre-trained models for our proposed training configuration (config F) as well as the baseline configuration (config A):
-
-- [https://nvlabs-fi-cdn.nvidia.com/edm/pretrained/](https://nvlabs-fi-cdn.nvidia.com/edm/pretrained/)
-- [https://nvlabs-fi-cdn.nvidia.com/edm/pretrained/baseline/](https://nvlabs-fi-cdn.nvidia.com/edm/pretrained/baseline/)
-
-To generate a batch of images using a given model and sampler, run:
-
-```.bash
-# Generate 64 images and save them as out/*.png
-python generate.py --outdir=out --seeds=0-63 --batch=64 \
-    --network=https://nvlabs-fi-cdn.nvidia.com/edm/pretrained/edm-cifar10-32x32-cond-vp.pkl
-```
-
-Generating a large number of images can be time-consuming; the workload can be distributed across multiple GPUs by launching the above command using `torchrun`:
-
-```.bash
-# Generate 1024 images using 2 GPUs
-torchrun --standalone --nproc_per_node=2 generate.py --outdir=out --seeds=0-999 --batch=64 \
-    --network=https://nvlabs-fi-cdn.nvidia.com/edm/pretrained/edm-cifar10-32x32-cond-vp.pkl
-```
-
-The sampler settings can be controlled through command-line options; see [`python generate.py --help`](./docs/generate-help.txt) for more information. For best results, we recommend using the following settings for each dataset:
-
-```.bash
-# For CIFAR-10 at 32x32, use deterministic sampling with 18 steps (NFE = 35)
-python generate.py --outdir=out --steps=18 \
-    --network=https://nvlabs-fi-cdn.nvidia.com/edm/pretrained/edm-cifar10-32x32-cond-vp.pkl
-
-# For FFHQ and AFHQv2 at 64x64, use deterministic sampling with 40 steps (NFE = 79)
-python generate.py --outdir=out --steps=40 \
-    --network=https://nvlabs-fi-cdn.nvidia.com/edm/pretrained/edm-ffhq-64x64-uncond-vp.pkl
-
-# For ImageNet at 64x64, use stochastic sampling with 256 steps (NFE = 511)
-python generate.py --outdir=out --steps=256 --S_churn=40 --S_min=0.05 --S_max=50 --S_noise=1.003 \
-    --network=https://nvlabs-fi-cdn.nvidia.com/edm/pretrained/edm-imagenet-64x64-cond-adm.pkl
-```
-
-Besides our proposed EDM sampler, `generate.py` can also be used to reproduce the sampler ablations from Section 3 of our paper. For example:
-
-```.bash
-# Figure 2a, "Our reimplementation"
-python generate.py --outdir=out --steps=512 --solver=euler --disc=vp --schedule=vp --scaling=vp \
-    --network=https://nvlabs-fi-cdn.nvidia.com/edm/pretrained/baseline/baseline-cifar10-32x32-uncond-vp.pkl
-
-# Figure 2a, "+ Heun & our {t_i}"
-python generate.py --outdir=out --steps=128 --solver=heun --disc=edm --schedule=vp --scaling=vp \
-    --network=https://nvlabs-fi-cdn.nvidia.com/edm/pretrained/baseline/baseline-cifar10-32x32-uncond-vp.pkl
-
-# Figure 2a, "+ Our sigma(t) & s(t)"
-python generate.py --outdir=out --steps=18 --solver=heun --disc=edm --schedule=linear --scaling=none \
-    --network=https://nvlabs-fi-cdn.nvidia.com/edm/pretrained/baseline/baseline-cifar10-32x32-uncond-vp.pkl
-```
-
-## Calculating FID
-
-To compute Fr&eacute;chet inception distance (FID) for a given model and sampler, first generate 50,000 random images and then compare them against the dataset reference statistics using `fid.py`:
-
-```.bash
-# Generate 50000 images and save them as fid-tmp/*/*.png
-torchrun --standalone --nproc_per_node=1 generate.py --outdir=fid-tmp --seeds=0-49999 --subdirs \
-    --network=https://nvlabs-fi-cdn.nvidia.com/edm/pretrained/edm-cifar10-32x32-cond-vp.pkl
-
-# Calculate FID
-torchrun --standalone --nproc_per_node=1 fid.py calc --images=fid-tmp \
-    --ref=https://nvlabs-fi-cdn.nvidia.com/edm/fid-refs/cifar10-32x32.npz
-```
-
-Both of the above commands can be parallelized across multiple GPUs by adjusting `--nproc_per_node`. The second command typically takes 1-3 minutes in practice, but the first one can sometimes take several hours, depending on the configuration. See [`python fid.py --help`](./docs/fid-help.txt) for the full list of options.
-
-Note that the numerical value of FID varies across different random seeds and is highly sensitive to the number of images. By default, `fid.py` will always use 50,000 generated images; providing fewer images will result in an error, whereas providing more will use a random subset. To reduce the effect of random variation, we recommend repeating the calculation multiple times with different seeds, e.g., `--seeds=0-49999`, `--seeds=50000-99999`, and `--seeds=100000-149999`. In our paper, we calculated each FID three times and reported the minimum.
-
-Also note that it is important to compare the generated images against the same dataset that the model was originally trained with. To facilitate evaluation, we provide the exact reference statistics that correspond to our pre-trained models:
-
-* [https://nvlabs-fi-cdn.nvidia.com/edm/fid-refs/](https://nvlabs-fi-cdn.nvidia.com/edm/fid-refs/)
-
-For ImageNet, we provide two sets of reference statistics to enable apples-to-apples comparison: `imagenet-64x64.npz` should be used when evaluating the EDM model (`edm-imagenet-64x64-cond-adm.pkl`), whereas `imagenet-64x64-baseline.npz` should be used when evaluating the baseline model (`baseline-imagenet-64x64-cond-adm.pkl`); the latter was originally trained by Dhariwal and Nichol using slightly different training data.
-
-You can compute the reference statistics for your own datasets as follows:
-
-```.bash
-python fid.py ref --data=datasets/my-dataset.zip --dest=fid-refs/my-dataset.npz
-```
-
-## Preparing datasets
-
-Datasets are stored in the same format as in [StyleGAN](https://github.com/NVlabs/stylegan3): uncompressed ZIP archives containing uncompressed PNG files and a metadata file `dataset.json` for labels. Custom datasets can be created from a folder containing images; see [`python dataset_tool.py --help`](./docs/dataset-tool-help.txt) for more information.
-
-**CIFAR-10:** Download the [CIFAR-10 python version](https://www.cs.toronto.edu/~kriz/cifar.html) and convert to ZIP archive:
-
-```.bash
-python dataset_tool.py --source=downloads/cifar10/cifar-10-python.tar.gz \
-    --dest=datasets/cifar10-32x32.zip
-python fid.py ref --data=datasets/cifar10-32x32.zip --dest=fid-refs/cifar10-32x32.npz
-```
-
-**FFHQ:** Download the [Flickr-Faces-HQ dataset](https://github.com/NVlabs/ffhq-dataset) as 1024x1024 images and convert to ZIP archive at 64x64 resolution:
-
-```.bash
-python dataset_tool.py --source=downloads/ffhq/images1024x1024 \
-    --dest=datasets/ffhq-64x64.zip --resolution=64x64
-python fid.py ref --data=datasets/ffhq-64x64.zip --dest=fid-refs/ffhq-64x64.npz
-```
-
-**AFHQv2:** Download the updated [Animal Faces-HQ dataset](https://github.com/clovaai/stargan-v2/blob/master/README.md#animal-faces-hq-dataset-afhq) (`afhq-v2-dataset`) and convert to ZIP archive at 64x64 resolution:
-
-```.bash
-python dataset_tool.py --source=downloads/afhqv2 \
-    --dest=datasets/afhqv2-64x64.zip --resolution=64x64
-python fid.py ref --data=datasets/afhqv2-64x64.zip --dest=fid-refs/afhqv2-64x64.npz
-```
-
-**ImageNet:** Download the [ImageNet Object Localization Challenge](https://www.kaggle.com/competitions/imagenet-object-localization-challenge/data) and convert to ZIP archive at 64x64 resolution:
-
-```.bash
-python dataset_tool.py --source=downloads/imagenet/ILSVRC/Data/CLS-LOC/train \
-    --dest=datasets/imagenet-64x64.zip --resolution=64x64 --transform=center-crop
-python fid.py ref --data=datasets/imagenet-64x64.zip --dest=fid-refs/imagenet-64x64.npz
-```
-
-## Training new models
-
-You can train new models using `train.py`. For example:
-
-```.bash
-# Train DDPM++ model for class-conditional CIFAR-10 using 8 GPUs
-torchrun --standalone --nproc_per_node=8 train.py --outdir=training-runs \
-    --data=datasets/cifar10-32x32.zip --cond=1 --arch=ddpmpp
-```
-
-The above example uses the default batch size of 512 images (controlled by `--batch`) that is divided evenly among 8 GPUs (controlled by `--nproc_per_node`) to yield 64 images per GPU. Training large models may run out of GPU memory; the best way to avoid this is to limit the per-GPU batch size, e.g., `--batch-gpu=32`. This employs gradient accumulation to yield the same results as using full per-GPU batches. See [`python train.py --help`](./docs/train-help.txt) for the full list of options.
-
-The results of each training run are saved to a newly created directory, for example `training-runs/00000-cifar10-cond-ddpmpp-edm-gpus8-batch64-fp32`. The training loop exports network snapshots (`network-snapshot-*.pkl`) and training states (`training-state-*.pt`) at regular intervals (controlled by `--snap` and `--dump`). The network snapshots can be used to generate images with `generate.py`, and the training states can be used to resume the training later on (`--resume`). Other useful information is recorded in `log.txt` and `stats.jsonl`. To monitor training convergence, we recommend looking at the training loss (`"Loss/loss"` in `stats.jsonl`) as well as periodically evaluating FID for `network-snapshot-*.pkl` using `generate.py` and `fid.py`.
-
-The following table lists the exact training configurations that we used to obtain our pre-trained models:
-
-| <sub>Model</sub> | <sub>GPUs</sub> | <sub>Time</sub> | <sub>Options</sub>
-| :-- | :-- | :-- | :--
-| <sub>cifar10&#8209;32x32&#8209;cond&#8209;vp</sub>   | <sub>8xV100</sub>  | <sub>~2&nbsp;days</sub>  | <sub>`--cond=1 --arch=ddpmpp`</sub>
-| <sub>cifar10&#8209;32x32&#8209;cond&#8209;ve</sub>   | <sub>8xV100</sub>  | <sub>~2&nbsp;days</sub>  | <sub>`--cond=1 --arch=ncsnpp`</sub>
-| <sub>cifar10&#8209;32x32&#8209;uncond&#8209;vp</sub> | <sub>8xV100</sub>  | <sub>~2&nbsp;days</sub>  | <sub>`--cond=0 --arch=ddpmpp`</sub>
-| <sub>cifar10&#8209;32x32&#8209;uncond&#8209;ve</sub> | <sub>8xV100</sub>  | <sub>~2&nbsp;days</sub>  | <sub>`--cond=0 --arch=ncsnpp`</sub>
-| <sub>ffhq&#8209;64x64&#8209;uncond&#8209;vp</sub>    | <sub>8xV100</sub>  | <sub>~4&nbsp;days</sub>  | <sub>`--cond=0 --arch=ddpmpp --batch=256 --cres=1,2,2,2 --lr=2e-4 --dropout=0.05 --augment=0.15`</sub>
-| <sub>ffhq&#8209;64x64&#8209;uncond&#8209;ve</sub>    | <sub>8xV100</sub>  | <sub>~4&nbsp;days</sub>  | <sub>`--cond=0 --arch=ncsnpp --batch=256 --cres=1,2,2,2 --lr=2e-4 --dropout=0.05 --augment=0.15`</sub>
-| <sub>afhqv2&#8209;64x64&#8209;uncond&#8209;vp</sub>  | <sub>8xV100</sub>  | <sub>~4&nbsp;days</sub>  | <sub>`--cond=0 --arch=ddpmpp --batch=256 --cres=1,2,2,2 --lr=2e-4 --dropout=0.25 --augment=0.15`</sub>
-| <sub>afhqv2&#8209;64x64&#8209;uncond&#8209;ve</sub>  | <sub>8xV100</sub>  | <sub>~4&nbsp;days</sub>  | <sub>`--cond=0 --arch=ncsnpp --batch=256 --cres=1,2,2,2 --lr=2e-4 --dropout=0.25 --augment=0.15`</sub>
-| <sub>imagenet&#8209;64x64&#8209;cond&#8209;adm</sub> | <sub>32xA100</sub> | <sub>~13&nbsp;days</sub> | <sub>`--cond=1 --arch=adm --duration=2500 --batch=4096 --lr=1e-4 --ema=50 --dropout=0.10 --augment=0 --fp16=1 --ls=100 --tick=200`</sub>
-
-For ImageNet-64, we ran the training on four NVIDIA DGX A100 nodes, each containing 8 Ampere GPUs with 80 GB of memory. To reduce the GPU memory requirements, we recommend either training the model with more GPUs or limiting the per-GPU batch size with `--batch-gpu`. To set up multi-node training, please consult the [torchrun documentation](https://pytorch.org/docs/stable/elastic/run.html).
-
-## License
-
-Copyright &copy; 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-
-All material, including source code and pre-trained models, is licensed under the [Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License](http://creativecommons.org/licenses/by-nc-sa/4.0/).
-
-`baseline-cifar10-32x32-uncond-vp.pkl` and `baseline-cifar10-32x32-uncond-ve.pkl` are derived from the [pre-trained models](https://github.com/yang-song/score_sde_pytorch) by Yang Song, Jascha Sohl-Dickstein, Diederik P. Kingma, Abhishek Kumar, Stefano Ermon, and Ben Poole. The models were originally shared under the [Apache 2.0 license](https://github.com/yang-song/score_sde_pytorch/blob/main/LICENSE).
-
-`baseline-imagenet-64x64-cond-adm.pkl` is derived from the [pre-trained model](https://github.com/openai/guided-diffusion) by Prafulla Dhariwal and Alex Nichol. The model was originally shared under the [MIT license](https://github.com/openai/guided-diffusion/blob/main/LICENSE).
-
-`imagenet-64x64-baseline.npz` is derived from the [precomputed reference statistics](https://github.com/openai/guided-diffusion/tree/main/evaluations) by Prafulla Dhariwal and Alex Nichol. The statistics were
-originally shared under the [MIT license](https://github.com/openai/guided-diffusion/blob/main/LICENSE).
-
-## Citation
-
-```
-@inproceedings{Karras2022edm,
-  author    = {Tero Karras and Miika Aittala and Timo Aila and Samuli Laine},
-  title     = {Elucidating the Design Space of Diffusion-Based Generative Models},
-  booktitle = {Proc. NeurIPS},
-  year      = {2022}
-}
-```
-
-## Development
-
-This is a research reference implementation and is treated as a one-time code drop. As such, we do not accept outside code contributions in the form of pull requests.
-
-## Acknowledgments
-
-We thank Jaakko Lehtinen, Ming-Yu Liu, Tuomas Kynk&auml;&auml;nniemi, Axel Sauer, Arash Vahdat, and Janne Hellsten for discussions and comments, and Tero Kuosmanen, Samuel Klenberg, and Janne Hellsten for maintaining our compute infrastructure.
+The EDM code and pretrained models are by Tero Karras, Miika Aittala, Timo Aila and Samuli Laine at NVIDIA ([paper](https://arxiv.org/abs/2206.00364)), released under the [CC BY-NC-SA 4.0 license](http://creativecommons.org/licenses/by-nc-sa/4.0/) (see [`LICENSE.txt`](LICENSE.txt)).
+The CIFAR-10 and MNIST labs are DSC 180A course material.

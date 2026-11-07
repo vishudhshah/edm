@@ -1,0 +1,21 @@
+{
+  "run": "/tmp/snaps",
+  "n_images": 1000,
+  "snapshots": [
+    {
+      "file": "network-snapshot-000000.pkl",
+      "kimg": 0,
+      "fid": 414.66088576517325
+    },
+    {
+      "file": "network-snapshot-000502.pkl",
+      "kimg": 502,
+      "fid": 106.24457937280772
+    },
+    {
+      "file": "network-snapshot-001004.pkl",
+      "kimg": 1004,
+      "fid": 76.8543433855964
+    }
+  ]
+}

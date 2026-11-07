@@ -1,4 +1,4 @@
-# Data & model downloads from the notebooks (~720 MB) — never commit these
+# Data & model downloads from the notebooks (~720 MB)
 downloads/
 cifar10/
 datasets/
@@ -13,6 +13,7 @@ MNIST/raw/
 *.pt
 *.npz
 *.tar.gz
+*.zip
 
 # Generated images
 out/
@@ -34,5 +35,22 @@ __pycache__/
 *.out
 *.toc
 *.synctex.gz
+*.synctex(busy)
 *.thm
+*.xdv
+*.lof
+*.lot
+*.run.xml
+*.bcf
+_minted*/
 figure/
+!report/figure/
+!report/figure/**
+!report/table/
+!report/table/**
+
+# Editor / OS
+.vscode/
+*.code-workspace
+.history/
+.DS_Store
