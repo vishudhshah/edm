@@ -17,8 +17,6 @@ MNIST/raw/
 
 # Generated images
 out/
-*.png
-!docs/*.png
 
 # Python artefacts
 __pycache__/
